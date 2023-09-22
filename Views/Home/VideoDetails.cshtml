@@ -1,0 +1,216 @@
+﻿@inject IRC ircInstance;
+@model NazcaWeb.Models.VideoItem
+
+@{
+    ViewData["Title"] = "VideoDetails";
+}
+
+@if (Model != null)
+{
+    <h2>@Html.DisplayFor(model => model.Title)</h2>
+
+    <table class="table table-striped mt-3">
+        <tr>
+            <td>
+                <h5>Ścieżka</h5>
+                <div id="filePath">
+                    <ol class="breadcrumb">
+                        @if (!ircInstance.IsPlaying)
+                        {
+                            foreach(var segment in Model.FullPath.Split('\\', StringSplitOptions.RemoveEmptyEntries).Select((v, i) => new { i, v }))
+                            {
+                                var active = segment.i == Model.FullPath.Split('\\', StringSplitOptions.RemoveEmptyEntries).Length - 1 ? "active" : "";
+                                <li class="breadcrumb-item @active">@segment.v</li>
+                            }
+                        }
+                        else
+                        {
+                            foreach (var segment in ircInstance.ProcessedPath.Split('\\', StringSplitOptions.RemoveEmptyEntries).Select((v, i) => new { i, v }))
+                            {
+                                var active = segment.i == Model.FullPath.Split('\\', StringSplitOptions.RemoveEmptyEntries).Length - 1 ? "active" : "";
+                                <li class="breadcrumb-item @active">@segment.v</li>
+                            }
+                        }
+                    </ol>
+                </div>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <h5>Wielkość</h5>
+                <p>@Model.Size</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <h5>Czas trwania</h5>
+                <p>@Model.Duration.ToString(@"hh\:mm\:ss")</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <h5>Typ pliku</h5>
+                <p>@Html.DisplayFor(model => model.MimeType)</p>
+            </td>
+        </tr>
+    </table>
+    <div class="container">
+        <div class="row">
+            <div class="col"></div>
+            <div class="col-4 w-50 d-flex justify-content-end align-items-center border-top border-disabled mt-2 pt-3">
+                <a id="stopButton" class="btn btn-danger me-2 @if (!ircInstance.ReadyToGo || !ircInstance.IsPlaying) { <text>disabled</text> }" onclick="stopPlaying()">Anuluj</a>
+                <a id="playButton" class="btn btn-success @if (!ircInstance.ReadyToGo || ircInstance.IsPlaying) { <text>disabled</text> }" onclick="startPlaying()">Odtwórz</a>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <h2>Nieznany plik</h2>
+    <hr />
+    <h5 class="text-muted">Nie znaleziono wybranego filmu!</h5>
+}
+
+<script>
+    var connection = new signalR.HubConnectionBuilder()
+        .withUrl("/videoHub")
+        .build();
+
+    connection.on("restorePath", function () {
+        clearDiv();
+        updateDiv('@Model?.FullPath', false, true);
+    });
+
+    connection.on("updateDiv", updateDiv);
+
+    connection.on("clearDiv", clearDiv);
+
+    connection.on("overwriteDiv", function (content, active) {
+        var ol = document.getElementById("filePath").querySelector("ol");
+        var child = ol.lastElementChild;
+        if (content != "")
+            child.innerText = content;
+        if (active != "")
+            child.classList.add(active);
+    });
+
+    connection.on("toggleButtons", function (stopButtonState, playButtonState) {
+        var stopButton = document.getElementById("stopButton");
+        var playButton = document.getElementById("playButton");
+        
+        if (stopButtonState != null) {
+            if (stopButtonState)
+                stopButton.classList.remove("disabled");
+            else
+                stopButton.classList.add("disabled");
+        }
+        if (playButtonState != null) {
+            if (playButtonState)
+                playButton.classList.remove("disabled");
+            else
+                playButton.classList.add("disabled");
+        }
+
+        console.log("Ustawiam stopButton na " + stopButtonState + " oraz playButton na " + playButtonState);
+    });
+
+    // Rozpoczęcie połączenia z hubem
+    connection.start()
+        .then(function () {
+            console.log("Połączenie z hubem nawiązane");
+        })
+        .catch(function (err) {
+            console.error("Błąd podczas nawiązywania połączenia z hubem:", err);
+        });
+
+    function startPlaying() {
+        // Wywołanie żądania AJAX
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', '/PlayVideo', true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+
+        xhr.onload = function () {
+            if (xhr.status >= 200 && xhr.status < 400) {
+                console.log("Pomyślnie uruchomiono przetwarzanie filmu @Model?.Title");
+            } else {
+                console.error("Błąd podczas wywoływania żądania AJAX");
+            }
+        };
+        xhr.onerror = function () {
+            console.error("Błąd podczas wywoływania żądania AJAX");
+        };
+        xhr.send(JSON.stringify({ videoId: '@Model?.ID' }));
+    }
+
+    function stopPlaying() {
+        // Wywołanie żądania AJAX
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', '/StopVideo', true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+
+        xhr.onload = function () {
+            if (xhr.status >= 200 && xhr.status < 400) {
+                console.log("Anulowano przetwarzanie filmu @Model?.Title");
+            } else {
+                console.error("Błąd podczas wywoływania żądania AJAX");
+            }
+        };
+        xhr.onerror = function () {
+            console.error("Błąd podczas wywoływania żądania AJAX");
+        };
+        xhr.send(JSON.stringify({ path: '@Model?.FullPath' }));
+
+        var ol = document.getElementById("filePath").querySelector("ol");
+        while (ol.firstChild) {
+            ol.removeChild(ol.firstChild);
+        }
+        var segments = "@Model?.FullPath".split('\\').filter(function (segment) {
+            return segment.trim() !== '';
+        });
+        segments.forEach(function (segment, index) {
+            var active = index === segments.length - 1 ? "active" : "";
+            var li = document.createElement("li");
+            li.classList.add("breadcrumb-item");
+            if (active != "")
+                li.classList.add(active);
+            li.textContent = segment;
+            ol.appendChild(li);
+        });
+    }
+
+    function updateDiv(content, active, lastActive) {
+        var ol = document.getElementById("filePath").querySelector("ol");
+        
+        var segments = content.split('\\').filter(function (segment) {
+            return segment.trim() !== '';
+        });
+
+        segments.forEach(function (segment, index) {
+            if (lastActive && index == segments.length - 1) {
+                active = "active";
+            }
+            ol.appendChild(getLiElement(segment, active));
+        });
+
+        if (content != '@Model?.FullPath')
+            ol.appendChild(getLiElement("", false));
+    }
+
+    function getLiElement(content, active) {
+        var li = document.createElement("li");
+        li.classList.add("breadcrumb-item");
+        if (active != "") {
+            li.classList.add(active);
+        }
+        li.textContent = content;
+        
+        return li;
+    }
+
+    function clearDiv() {
+        var ol = document.getElementById("filePath").querySelector("ol");
+        while (ol.firstChild) {
+            ol.removeChild(ol.firstChild);
+        }
+    }
+</script>

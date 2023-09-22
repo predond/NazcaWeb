@@ -1,0 +1,127 @@
+﻿@model FileSystemItem
+
+@{
+    ViewData["Title"] = "VideoSearcher";
+}
+
+<style>
+    .even {
+        background-color: rgba(220, 220, 220);
+    }
+
+    .even-white {
+        background-color: rgba(255, 255, 255, 0.9);
+    }
+
+    .accordion-button .bi-caret-up-fill {
+        transition: transform 0.3s ease-in-out;
+    }
+
+    .accordion-button.collapsed .bi-caret-up-fill{
+        transform: rotate(-180deg);
+        transition: transform 0.3s ease-in-out;
+    }
+
+    body {
+        background-image: url("../../assets/background.jpg");
+        background-repeat: no-repeat;
+        background-size: 110vw;
+        background-position: 20% 40%;
+        background-attachment: fixed;
+    }
+
+    .custom-button {
+        background-color: white;
+        color: black;
+        transition: all 0.3s, color 0.3s;
+    }
+
+    .custom-button:hover {
+        background-color: #343a40;
+        color: white;
+    }
+</style>
+
+<form action="VideoSearcher" method="post">
+    <div class="input-group mb-3">
+        <input type="text" class="form-control" name="search" placeholder="Wyszukaj..." aria-label="Wyszukaj..." aria-describedby="search-button">
+        <button class="btn custom-button" type="submit" id="search-button">
+            <i class="bi bi-search"></i>
+        </button>
+    </div>
+</form>
+
+@if (Model == null || !(Model.Subfolders.Any() || Model.Files.Any()))
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>
+                    Tytuł
+                </th>
+                <th>
+                    @*@Html.DisplayNameFor(model => model["groupedFiles"].FullPath)*@
+                    Ścieżka
+                </th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td colspan="2">
+                    Brak danych
+                </td>
+            </tr>
+        </tbody>
+    </table>
+}
+else
+{
+    @*var lastSeries = "";
+    foreach (var item in Model) {
+        var firstFlag = true;
+        var current = System.IO.Path.GetFileNameWithoutExtension(item.FullPath);
+        var parent = Directory.GetParent(item.FullPath).Name;
+        if (current.Contains(parent))
+        {
+            firstFlag = lastSeries != parent;
+            lastSeries = parent;
+            var final = item.Title.Replace(parent, "Odcinek");
+            if (firstFlag)
+            {
+                <tr><td colspan="2">@Html.DisplayFor(modelItem => parent)</td></tr>
+            }
+            <tr>
+                <td>@Html.DisplayFor(modelItem => final)</td>
+                <td>
+                    @{
+                        var elems = item.FullPath.Split('\\').ToList();
+                        elems.RemoveRange(0, 2);
+                        <nav aria-label="breadcrumb">
+                            <ol class="breadcrumb">
+                                @foreach (var el in elems)
+                                {
+                                    <li class="breadcrumb-item" aria-current="page">@Html.DisplayFor(modelItem => el)</li>
+                                }
+                            </ol>
+                        </nav>
+                    }
+                    @Html.DisplayFor(modelItem => item.FullPath)
+                </td>
+            </tr>
+        }
+        <td>
+            @Html.ActionLink("Edit", "Edit", new { /* id=item.PrimaryKey */ }) |
+            @Html.ActionLink("Details", "Details", new { /* id=item.PrimaryKey */ }) |
+            @Html.ActionLink("Delete", "Delete", new { /* id=item.PrimaryKey */ })
+        </td>
+    }*@
+
+    if (ViewBag.nazcaMode != null && ViewBag.nazcaMode == true)
+    {
+        <partial name="~/Views/Shared/_VideosListNazca.cshtml" />
+    }
+    else
+    {
+        <partial name="~/Views/Shared/_VideosListNormal.cshtml" />
+    }
+}

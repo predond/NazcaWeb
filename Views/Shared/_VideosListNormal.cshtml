@@ -1,0 +1,17 @@
+﻿@model FileSystemItem
+
+<div id="accordion">
+    @{
+        int level = 0;
+        foreach (var rootItem in Model.Subfolders.OrderBy(i => i.Name).Select((element, index) => new { Index = index, Element = element }).ToArray())
+        {
+            var result = await VideoModel.RenderAccordionItem(rootItem.Element, "accordion", level);
+            level = result.level;
+            @Html.Raw(result.html);
+        }
+    }
+</div>
+
+<script>
+
+</script>
