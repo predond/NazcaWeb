@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.SignalR;
 using Microsoft.CodeAnalysis.Elfie.Diagnostics;
 using NazcaWeb.Controllers;
+using NazcaWeb.Hubs;
 
 namespace NazcaWeb.Models
 {
@@ -8,10 +9,9 @@ namespace NazcaWeb.Models
     {
         private CancellationTokenSource cancellationTokenSource;
         public CancellationToken cancellationToken;
-        private CancellationTokenSource returnCancellationTokenSource;
-        private CancellationToken returnCancellationToken;
         private FileSystemWatcher watcher;
         private Stack<string> playingHistory;
+        private readonly IHubContext<VideoHub> _hubContext;
         private bool videoReturning = false;
 
         IRD controller;
@@ -33,14 +33,13 @@ namespace NazcaWeb.Models
         public event VideoStoppedEventHandler VideoStopped;
         public event ActualPathChangedEventHandler ActualPathChanged;
 
-        public IRC(string deviceAddress)
+        public IRC(string deviceAddress, IHubContext<VideoHub> hubContext)
         {
+            _hubContext = hubContext;
             Task.Run(() => {
                 controller = new IRD(deviceAddress);
                 cancellationTokenSource = new CancellationTokenSource();
                 cancellationToken = cancellationTokenSource.Token;
-                returnCancellationTokenSource = new CancellationTokenSource();
-                returnCancellationToken = returnCancellationTokenSource.Token;
                 watcher = new FileSystemWatcher(StartPath, "*.*");
                 watcher.IncludeSubdirectories = true;
                 watcher.NotifyFilter = NotifyFilters.Attributes
@@ -88,7 +87,7 @@ namespace NazcaWeb.Models
                 IsDirectory = File.GetAttributes(e.FullPath) == FileAttributes.Directory
             });
 
-            HomeController.HubContext.Clients.All.SendAsync("updateVideosList");
+            _hubContext.Clients.All.SendAsync("updateVideosList");
             Console.WriteLine($"Dodano plik {Path.GetFileNameWithoutExtension(e.FullPath)} ze ścieżką {e.FullPath.Replace("\\", "\\\\")}");
         }
 
@@ -104,7 +103,7 @@ namespace NazcaWeb.Models
 
             ChangeFileName(targetItem, Path.GetFileNameWithoutExtension(e.FullPath.Replace(".mts", "")), Path.GetExtension(e.FullPath));
 
-            HomeController.HubContext.Clients.All.SendAsync("updateVideosList");
+            _hubContext.Clients.All.SendAsync("updateVideosList");
             Console.WriteLine($"Zmieniono dane pliku." +
                 $"\n\t\tTytuł z: {Path.GetFileNameWithoutExtension(e.OldFullPath)} na {targetItem.Title}." +
                 $"\n\t\tŚcieżka z: {e.OldFullPath} na {targetItem.FullPath.Replace("\\\\", "\\")}.");
@@ -117,7 +116,7 @@ namespace NazcaWeb.Models
 
             VideoModel.RemoveVideoItem(e.FullPath);
 
-            HomeController.HubContext.Clients.All.SendAsync("updateVideosList");
+            _hubContext.Clients.All.SendAsync("updateVideosList");
             Console.WriteLine($"Usunięto plik {e.FullPath}.");
         }
 
@@ -249,16 +248,16 @@ namespace NazcaWeb.Models
             var path = ProcessedPath.Replace("\\\\", "\\").Replace(StartPath, "").Split("\\", StringSplitOptions.RemoveEmptyEntries).Reverse();
             foreach (var segment in path)
             {
-                if (returnCancellationToken.IsCancellationRequested)
+                if (cancellationToken.IsCancellationRequested)
                     break;
                 controller.SendQuery("TV.Back");
-                await Task.Delay(750, returnCancellationToken).TryAsync();
+                await Task.Delay(750, cancellationToken).ContinueWith(tsk => { });
                 Console.WriteLine("Cofam \"" + segment + "\" ze ścieżki \"" + ProcessedPath + "\", do ścieżki \"" + ProcessedPath.Replace(segment, "").Trim('\\') + "\".");
                 ProcessedPath = ProcessedPath.Replace(segment, "").TrimEnd('\\');
                 ActualPathChanged?.Invoke(this, ProcessedPath);
             }
 
-            if (!returnCancellationToken.IsCancellationRequested)
+            if (!cancellationToken.IsCancellationRequested)
                 controller.SendQuery("TV.OK");
 
             /*var cmd = "";
@@ -315,10 +314,10 @@ namespace NazcaWeb.Models
             }
             else
             {
-                returnCancellationTokenSource?.Cancel();
+                cancellationTokenSource?.Cancel();
 
-                returnCancellationTokenSource = new CancellationTokenSource();
-                returnCancellationToken = returnCancellationTokenSource.Token;
+                cancellationTokenSource = new CancellationTokenSource();
+                cancellationToken = cancellationTokenSource.Token;
             }
         }
     }
@@ -352,22 +351,6 @@ namespace NazcaWeb.Models
         public VideoEventArgs(VideoItem videoItem)
         {
             VideoItem = videoItem;
-        }
-    }
-
-    public static class TaskExtensions
-    {
-        public static async Task<bool> TryAsync(this Task task)
-        {
-            try
-            {
-                await task;
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
         }
     }
 }

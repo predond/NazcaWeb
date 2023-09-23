@@ -14,14 +14,12 @@ namespace NazcaWeb.Controllers
         private readonly ILogger<HomeController> _logger;
         private readonly IRC _irc;
         private readonly IHubContext<VideoHub> _hubContext;
-        public static IHubContext<VideoHub> HubContext;
 
         public HomeController(ILogger<HomeController> logger, IRC irc, IHubContext<VideoHub> hubContext)
         {
             _logger = logger;
             _irc = irc;
             _hubContext = hubContext;
-            HubContext = hubContext;
 
             _irc.Initialized += _irc_InitializedAsync;
             _irc.VideoStarted += _irc_VideoStartedAsync;

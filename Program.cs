@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.SignalR;
 using NazcaWeb.Hubs;
 using NazcaWeb.Models;
 
@@ -5,8 +6,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
-builder.Services.AddSingleton(p => new IRC("192.168.1.188"));
 builder.Services.AddSignalR();
+builder.Services.AddSingleton(p => new IRC("192.168.1.188", p.GetRequiredService<IHubContext<VideoHub>>()));
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
