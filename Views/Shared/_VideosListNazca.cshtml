@@ -30,89 +30,12 @@
         color: blue !important;
     }
 
-    .accordion-body a:hover {
+    #accordion a:hover {
         border-bottom: 1px solid blue;
         color: blue !important;
     }
 </style>
 
-@functions {
-    async Task RenderAccordionItem(FileSystemItem item, string rootAccordion = "", int level = 0)
-    {
-        var guid = Guid.NewGuid();
-        var id = "section_" + guid;
-        var collapse = "collapse_" + guid;
-        var accordion = rootAccordion != "" ? rootAccordion : "accordion_" + guid;
-        var path = item.Files.FirstOrDefault()?.FullPath;
-        if (path != null)
-        {
-            path = Directory.GetParent(path)?.FullName;
-        }
-
-        var ps = level * 0.8; 
-        if (item.Subfolders.Count > 0 || item.Files.Count > 1)
-        {
-            <div class="accordion-item pt-2 ps-2" style="margin-left: @ps.ToString().Replace(',', '.')%;">
-                <h2 class="accordion-header" id="@collapse">
-                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#@id" aria-expanded="false" aria-controls="@id" data-bs-parent="#@accordion">
-                        <div class="d-flex justify-content-between w-100 me-3">
-                            <div>
-                                <p>@item.Name</p>
-                            </div>
-                            <div class="d-none d-md-block">
-                                <p>@path</p>
-                            </div>
-                        </div>
-                        <i class="bi-caret-up-fill"></i>
-                    </button>
-                </h2>
-                <div id="@id" class="accordion-collapse collapse" aria-labelledby="@collapse" data-bs-parent="#@accordion">
-                    <hr />
-                    <div class="accordion-body">
-                        @{
-                            accordion = "accordion_" + Guid.NewGuid();
-                        }
-                        <div id="@accordion">
-                            @{
-                                var subLevel = ++level;
-                                foreach (var subdir in item.Subfolders.OrderBy(v => v.Name).Select((element, index) => new { Index = index, Element = element }).ToArray())
-                                {
-                                    await RenderAccordionItem(subdir.Element, accordion, subLevel);
-                                }
-                            }
-                        </div>
-                        @{
-                            ps = ps == 0 ? 0.8 : ps;
-                            foreach (var video in item.Files.OrderBy(v => v.Title).Select((element, index) => new { Index = index, Element = element }).ToArray())
-                            {
-                                <div class="d-flex justify-content-between">
-                                    <a asp-action="VideoDetails" asp-route-videoId="@video.Element.ID" class="text-white link-underline link-underline-opacity-0 w-100 ps-2 py-1" style="margin-left: @ps.ToString().Replace(',', '.')%;">@video.Element.Title</a>
-                                </div>
-                            }
-                            <span class="mb-1" style="display: inline-block;"></span>
-                        }
-                    </div>
-                </div>
-            </div>
-        }
-        else if (item.Files.Count == 1)
-        {
-            var index = item.Files.FirstOrDefault()?.ID;
-            <a asp-action="VideoDetails" asp-route-videoId="@index" class="d-flex justify-content-between text-white link-underline link-underline-opacity-0 ps-2 pt-2" style="margin-left: @ps.ToString().Replace(',', '.')%;">
-                <div>
-                    <p>@item.Name</p>
-                </div>
-                <div class="d-none d-md-block">
-                    <p>@path</p>
-                </div>
-            </a>
-        }
-    }
-}
-
 <div id="accordion" class="bg-dark bg-opacity-75 text-white p-4 rounded">
-    @foreach (var rootItem in Model.Subfolders.OrderBy(i => i.Name).Select((element, index) => new { Index = index, Element = element }).ToArray())
-    {
-        await RenderAccordionItem(rootItem.Element, "accordion");
-    }
+    @Html.Raw(await VideoModel.RenderNazcaAccordionItem(Model, "accordion"))
 </div>

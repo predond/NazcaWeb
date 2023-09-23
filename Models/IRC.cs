@@ -1,4 +1,6 @@
-﻿using Microsoft.CodeAnalysis.Elfie.Diagnostics;
+﻿using Microsoft.AspNetCore.SignalR;
+using Microsoft.CodeAnalysis.Elfie.Diagnostics;
+using NazcaWeb.Controllers;
 
 namespace NazcaWeb.Models
 {
@@ -8,6 +10,7 @@ namespace NazcaWeb.Models
         public CancellationToken cancellationToken;
         private CancellationTokenSource returnCancellationTokenSource;
         private CancellationToken returnCancellationToken;
+        private FileSystemWatcher watcher;
         private Stack<string> playingHistory;
         private bool videoReturning = false;
 
@@ -16,7 +19,7 @@ namespace NazcaWeb.Models
         public bool ReadyToGo = false;
         public bool IsPlaying = false;
         public string ProcessedPath = "";
-        public string StartPath = @"E:\Nazca\VinGen\Filmy";
+        public static string StartPath = @"E:\Nazca\VinGen\Filmy";
 
         // Delegaty dla zdarzeń
         public delegate void InitializedEventHandler(object sender, EventArgs e);
@@ -38,10 +41,89 @@ namespace NazcaWeb.Models
                 cancellationToken = cancellationTokenSource.Token;
                 returnCancellationTokenSource = new CancellationTokenSource();
                 returnCancellationToken = returnCancellationTokenSource.Token;
+                watcher = new FileSystemWatcher(StartPath, "*.*");
+                watcher.IncludeSubdirectories = true;
+                watcher.NotifyFilter = NotifyFilters.Attributes
+                                 | NotifyFilters.CreationTime
+                                 | NotifyFilters.DirectoryName
+                                 | NotifyFilters.FileName
+                                 | NotifyFilters.LastAccess
+                                 | NotifyFilters.LastWrite
+                                 | NotifyFilters.Security
+                                 | NotifyFilters.Size;
+                watcher.Created += Watcher_Created;
+                watcher.Deleted += Watcher_Deleted;
+                watcher.Renamed += Watcher_Renamed;
+                watcher.Error += Watcher_Error;
+                watcher.EnableRaisingEvents = true;
                 playingHistory = new Stack<string>();
                 Initialized?.Invoke(this, EventArgs.Empty);
                 ReadyToGo = true;
             });
+        }
+
+        private void Watcher_Created(object sender, FileSystemEventArgs e)
+        {
+            if (e == null)
+                return;
+
+            var targetElem = VideoModel.GetVideoParentItem(e.FullPath);
+
+            if (targetElem == null)
+                return;
+
+            var counter = 1;
+            double size = new FileInfo(e.FullPath).Length;
+            while (size > 1024)
+            {
+                size /= 1024;
+                counter++;
+            }
+
+            targetElem.Files.Add(new VideoItem()
+            {
+                Title = Path.GetFileNameWithoutExtension(e.FullPath),
+                FullPath = e.FullPath.Replace("\\", "\\\\"),
+                Size = Math.Round(size, 2) + " " + Enum.GetName(typeof(VideoItem.Sizes), counter),
+                IsDirectory = File.GetAttributes(e.FullPath) == FileAttributes.Directory
+            });
+
+            HomeController.HubContext.Clients.All.SendAsync("updateVideosList");
+            Console.WriteLine($"Dodano plik {Path.GetFileNameWithoutExtension(e.FullPath)} ze ścieżką {e.FullPath.Replace("\\", "\\\\")}");
+        }
+
+        private void Watcher_Renamed(object sender, RenamedEventArgs e)
+        {
+            if (e == null)
+                return;
+
+            var targetItem = VideoModel.GetVideoItem(e.OldFullPath);
+
+            if (targetItem == null)
+                return;
+
+            ChangeFileName(targetItem, Path.GetFileNameWithoutExtension(e.FullPath.Replace(".mts", "")), Path.GetExtension(e.FullPath));
+
+            HomeController.HubContext.Clients.All.SendAsync("updateVideosList");
+            Console.WriteLine($"Zmieniono dane pliku." +
+                $"\n\t\tTytuł z: {Path.GetFileNameWithoutExtension(e.OldFullPath)} na {targetItem.Title}." +
+                $"\n\t\tŚcieżka z: {e.OldFullPath} na {targetItem.FullPath.Replace("\\\\", "\\")}.");
+        }
+
+        private void Watcher_Deleted(object sender, FileSystemEventArgs e)
+        {
+            if (e == null)
+                return;
+
+            VideoModel.RemoveVideoItem(e.FullPath);
+
+            HomeController.HubContext.Clients.All.SendAsync("updateVideosList");
+            Console.WriteLine($"Usunięto plik {e.FullPath}.");
+        }
+
+        private void Watcher_Error(object sender, ErrorEventArgs e)
+        {
+
         }
 
         public async void SimPlayVideo(VideoItem videoItem, Action<string, bool> onSegmentProcessed)
@@ -189,6 +271,35 @@ namespace NazcaWeb.Models
 
             videoReturning = false;
             VideoStopped?.Invoke(this, EventArgs.Empty);
+        }
+
+        public bool ChangeFileName(VideoItem video, string name = "", string extension = "")
+        {
+            if (video == null)
+                return false;
+
+            var path = video.FullPath.Replace("\\\\", "\\");
+
+            if (extension == "" || extension.ToLower().Contains("mts"))
+                extension = Path.GetExtension(path.Replace(".mts", ""));
+            else
+                extension = extension.StartsWith('.') ? extension : "." + extension;
+
+            var newPath = Path.Combine(Path.GetDirectoryName(path) + "", (name != "" ? name : Path.GetFileNameWithoutExtension(path.Replace(".mts", ""))) + extension);
+
+            if (Path.GetDirectoryName(path) != Path.GetDirectoryName(newPath))
+                return false;
+
+            if (File.Exists(path))
+                File.Move(path, newPath);
+
+            if (File.Exists(newPath + ".mts"))
+                File.Move(newPath + ".mts", newPath.Replace(".mts", ""));
+
+            video.FullPath = newPath.Replace("\\", "\\\\");
+            video.Title = Path.GetFileNameWithoutExtension(newPath);
+
+            return true;
         }
 
         public void StopVideoProcessing()

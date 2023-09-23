@@ -115,13 +115,58 @@ else
             @Html.ActionLink("Delete", "Delete", new { /* id=item.PrimaryKey */ })
         </td>
     }*@
-
-    if (ViewBag.nazcaMode != null && ViewBag.nazcaMode == true)
-    {
-        <partial name="~/Views/Shared/_VideosListNazca.cshtml" />
-    }
-    else
-    {
-        <partial name="~/Views/Shared/_VideosListNormal.cshtml" />
-    }
+    <div id="listContent">
+        @if (ViewBag.nazcaMode != null && ViewBag.nazcaMode == true)
+        {
+            <partial name="~/Views/Shared/_VideosListNazca.cshtml" />
+        }
+        else
+        {
+            <partial name="~/Views/Shared/_VideosListNormal.cshtml" />
+        }
+    </div>
 }
+
+<script>
+    var connection = new signalR.HubConnectionBuilder()
+        .withUrl("/videoHub")
+        .build();
+
+    connection.on("updateVideosList", function () {
+        //var accordion = document.getElementById('listContent');
+        //accordion.innerHTML = "";
+
+        @{
+            //VideoModel.GroupedFiles.Files.Add(new VideoItem("BURAK"));
+            //var result = (await VideoModel.RenderAccordionItem(VideoModel.GroupedFiles, "accordion")).html;
+            //Console.WriteLine("Powtamtam: \n" + string.Join(", ", VideoModel.GroupedFiles.Files.Select(o => o.Title)));
+        }
+
+        $.ajax({
+            url: '/GetNewList?nazca=@ViewBag.nazca',
+            method: 'GET',
+            success: function (result) {
+                    $('#listContent').html(result);
+            }
+        });
+
+        //if ("ViewBag.nazcaMode" != null && "ViewBag.nazcaMode" == true) {
+        //    console.log("Dla Nazci");
+        //    accordion.innerHTML = 'Html.Raw(await VideoModel.RenderNazcaAccordionItem(VideoModel.GroupedFiles, "accordion"))';
+        //}
+        //else {
+        //    console.log("Dla PC");
+        //    var html = 'Html.Raw(result)';
+        //    console.log(html);
+        //    accordion.innerHTML = html;
+        //}
+    });
+
+    connection.start()
+        .then(function () {
+            console.log("Połączenie z hubem nawiązane");
+        })
+        .catch(function (err) {
+            console.error("Błąd podczas nawiązywania połączenia z hubem:", err);
+        });
+</script>
