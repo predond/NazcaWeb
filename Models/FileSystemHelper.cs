@@ -5,6 +5,7 @@ namespace NazcaWeb.Models
     public class FileSystemItem
     {
         public string Name { get; set; } = "";
+        public string FullPath { get; set; } = "";
         public List<FileSystemItem> Subfolders { get; set; } = new List<FileSystemItem>();
         public List<VideoItem> Files { get; set; } = new List<VideoItem>();
     }
@@ -20,7 +21,8 @@ namespace NazcaWeb.Models
         {
             var structure = files ?? new FileSystemItem
             {
-                Name = directoryInfo.Name
+                Name = directoryInfo.Name,
+                FullPath = directoryInfo.FullName,
             };
             
             foreach (var directory in directoryInfo.GetDirectories())

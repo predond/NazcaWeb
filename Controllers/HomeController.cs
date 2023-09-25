@@ -49,8 +49,63 @@ namespace NazcaWeb.Controllers
             return PartialView(nazca ? "_VideosListNazca" : "_VideosListNormal", VideoModel.GroupedFiles);
         }
 
+        [HttpGet]
+        [Route("Films")]
+        public IActionResult VideoSearcher()
+        {
+            /*var obj = new VideoItem[] {
+                        new VideoItem() { Title = "Film A", FullPath = @"directory\A" },
+                        new VideoItem() { Title = "Film B", FullPath = @"directory\B" },
+                        new VideoItem() { Title = "Film C", FullPath = @"directory\C" }};*/
+            return View(VideoModel.GroupedFiles);
+        }
+
         [HttpPost]
-        public async Task PlayVideo([FromBody]StartVideoRequest videoId)
+        [Route("Films")]
+        public IActionResult VideoSearcher(string? search)
+        {
+            return View(VideoModel.GetVideosByName(search ?? "" ));
+        }
+
+        [Route("Films/Nazca")]
+        public IActionResult VideoSearcherNazca()
+        {
+            //var obj = VideoModel.GetVideos(@"\\DISKSTATION\video1\Filmy Dawid\Private");
+            ViewBag.nazcaMode = true;
+            return View("VideoSearcher", VideoModel.GroupedFiles);
+        }
+
+        [Route("Films/Details")]
+        public IActionResult VideoDetails(Guid videoId)
+        {
+            var retVal = VideoModel.GetVideoById(videoId);
+            if (retVal != null && retVal.Duration == TimeSpan.Zero)
+            {
+                var details = TagLib.File.Create(retVal.FullPath.Replace("\\\\", "\\"), ReadStyle.Average);
+                retVal.Duration = details != null ? details.Properties.Duration : TimeSpan.Zero;
+                retVal.MimeType = details != null ? details.MimeType.Split('/').Last().ToUpper() : "";
+            }
+
+            return View(retVal);
+        }
+
+        [Route("Films/Details/Nazca")]
+        public IActionResult VideoDetailsNazca(Guid videoId)
+        {
+            var retVal = VideoModel.GetVideoById(videoId);
+            if (retVal != null && retVal.Duration == TimeSpan.Zero)
+            {
+                var details = TagLib.File.Create(retVal.FullPath.Replace("\\\\", "\\"), ReadStyle.Average);
+                retVal.Duration = details != null ? details.Properties.Duration : TimeSpan.Zero;
+                retVal.MimeType = details != null ? details.MimeType.Split('/').Last().ToUpper() : "";
+            }
+
+            ViewBag.nazcaMode = true;
+            return View("VideoDetails", retVal);
+        }
+
+        [HttpPost]
+        public async Task PlayVideo([FromBody] StartVideoRequest videoId)
         {
             var video = VideoModel.GetVideoById(Guid.Parse(videoId.VideoId));
             if (video != null)
@@ -79,52 +134,13 @@ namespace NazcaWeb.Controllers
         }
 
         [HttpPost]
-        public async Task StopVideo([FromBody]StopVideoRequest path)
+        public async Task StopVideo([FromBody] StopVideoRequest path)
         {
             Console.WriteLine("Ścieżka controller: " + path.Path);
             _irc.StopVideoProcessing();
             await _hubContext.Clients.All.SendAsync("clearDiv");
             await _hubContext.Clients.All.SendAsync("updateDiv", path.Path);
             await _hubContext.Clients.All.SendAsync("overwriteDiv", "", "active");
-        }
-
-        [Route("Films/Nazca")]
-        public IActionResult Nazca()
-        {
-            //var obj = VideoModel.GetVideos(@"\\DISKSTATION\video1\Filmy Dawid\Private");
-            ViewBag.nazcaMode = true;
-            return View("VideoSearcher", VideoModel.GroupedFiles);
-        }
-
-        public IActionResult VideoDetails(Guid videoId)
-        {
-            var retVal = VideoModel.GetVideoById(videoId);
-            if (retVal != null && retVal.Duration == TimeSpan.Zero)
-            {
-                var details = TagLib.File.Create(retVal.FullPath.Replace("\\\\", "\\"), ReadStyle.Average);
-                retVal.Duration = details != null ? details.Properties.Duration : TimeSpan.Zero;
-                retVal.MimeType = details != null ? details.MimeType.Split('/').Last().ToUpper() : "";
-            }
-
-            return View(retVal);
-        }
-
-        [HttpGet]
-        [Route("Films")]
-        public IActionResult VideoSearcher()
-        {
-            /*var obj = new VideoItem[] {
-                        new VideoItem() { Title = "Film A", FullPath = @"directory\A" },
-                        new VideoItem() { Title = "Film B", FullPath = @"directory\B" },
-                        new VideoItem() { Title = "Film C", FullPath = @"directory\C" }};*/
-            return View("VideoSearcher", VideoModel.GroupedFiles);
-        }
-
-        [HttpPost]
-        [Route("Films")]
-        public IActionResult VideoSearcher(string? search)
-        {
-            return View(VideoModel.GetVideosByName(search ?? "" ));
         }
 
         [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
@@ -136,7 +152,7 @@ namespace NazcaWeb.Controllers
         private async void _irc_InitializedAsync(object sender, EventArgs e)
         {
             //Console.WriteLine("[EVENT] Zainicjalizowano klasę IRC");
-            await _hubContext.Clients.All.SendAsync("toggleButtons", false, true);
+            await _hubContext.Clients.All.SendAsync("toggleButtons", true, true);
         }
 
         private async void _irc_VideoStartedAsync(object sender, VideoEventArgs e)
@@ -149,7 +165,7 @@ namespace NazcaWeb.Controllers
         {
             //Console.WriteLine("[EVENT] Zatrzymano odtwarzanie filmu");
             await _hubContext.Clients.All.SendAsync("restorePath");
-            await _hubContext.Clients.All.SendAsync("toggleButtons", false, true);
+            await _hubContext.Clients.All.SendAsync("toggleButtons", true, true);
         }
 
         private async void _irc_ActualPathChanged(object sender, string e)

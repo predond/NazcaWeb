@@ -25,7 +25,7 @@
     body {
         background-image: url("../../assets/background.jpg");
         background-repeat: no-repeat;
-        background-size: 110vw;
+        background-size: cover;
         background-position: 20% 40%;
         background-attachment: fixed;
     }
@@ -115,6 +115,7 @@ else
             @Html.ActionLink("Delete", "Delete", new { /* id=item.PrimaryKey */ })
         </td>
     }*@
+
     <div id="listContent">
         @if (ViewBag.nazcaMode != null && ViewBag.nazcaMode == true)
         {
@@ -143,7 +144,7 @@ else
         }
 
         $.ajax({
-            url: '/GetNewList?nazca=@ViewBag.nazca',
+            url: '/GetNewList?nazca=@ViewBag.nazcaMode',
             method: 'GET',
             success: function (result) {
                     $('#listContent').html(result);

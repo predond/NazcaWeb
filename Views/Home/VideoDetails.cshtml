@@ -1,65 +1,110 @@
-﻿@inject IRC ircInstance;
+﻿@using NazcaWeb.Models;
+@inject IRC ircInstance;
 @model NazcaWeb.Models.VideoItem
 
 @{
     ViewData["Title"] = "VideoDetails";
 }
 
+<style>
+    body {
+        background-image: url("../../assets/background.jpg");
+        background-repeat: no-repeat;
+        background-size: cover;
+        background-position: 20% 40%;
+        background-attachment: fixed;
+    }
+
+    .bookmark {
+        background: red;
+        position: absolute;
+        top: -4px;
+        right: 0;
+        width: 0;
+        height: 80px;
+        border-left: 30px solid transparent;
+        border-right: 30px solid transparent;
+        border-bottom: 30px solid #007bff; /* Kolor zakładki */
+        border-radius: 0 0 5px 5px; /* Zakrąglenie dolnego rogu */
+        z-index: 1; /* Umieść zakładkę na wierzchu innej zawartości */
+    }
+
+    .header-flag {
+        position: relative;
+	    border-top: 4px solid transparent;
+	    border-image: linear-gradient(to right, transparent, transparent, white);
+	    border-image-slice: 1;
+    }
+
+    .grabor {
+        border-top: 4px solid transparent;
+	    border-image: linear-gradient(to right, transparent, white);
+	    border-image-slice: 1;
+    }
+
+    @if (ViewBag.nazcaMode != null && ViewBag.nazcaMode)
+    {
+        <text>
+            tr {
+                border-bottom: 2px solid gray;
+            }
+
+            .breadcrumb {
+                --bs-breadcrumb-divider-color: inherit;
+                --bs-breadcrumb-item-active-color: rgba(255, 255, 255, .5);
+            }
+        </text>
+    }
+</style>
+
 @if (Model != null)
 {
-    <h2>@Html.DisplayFor(model => model.Title)</h2>
+    <div class="@(ViewBag.nazcaMode != null && ViewBag.nazcaMode ? "bg-dark bg-opacity-75" : "") text-white p-4 rounded">
+        <h2 class="header-flag">@Html.DisplayFor(model => model.Title)
+            <span class="bookmark"></span>
+        </h2>
 
-    <table class="table table-striped mt-3">
-        <tr>
-            <td>
-                <h5>Ścieżka</h5>
-                <div id="filePath">
-                    <ol class="breadcrumb">
-                        @if (!ircInstance.IsPlaying)
-                        {
-                            foreach(var segment in Model.FullPath.Split('\\', StringSplitOptions.RemoveEmptyEntries).Select((v, i) => new { i, v }))
+        <table class="@(ViewBag.nazcaMode != null && ViewBag.nazcaMode ? "w-100" : "table table-borderless table-striped") mt-3">
+            <tr class="@(ViewBag.nazcaMode != null && ViewBag.nazcaMode ? "d-block mt-2 ps-2" : "")">
+                <td class="rounded">
+                    <h5 class="@(ViewBag.nazcaMode != null && ViewBag.nazcaMode ? "text-secondary" : "")">Ścieżka</h5>
+                    <div id="filePath">
+                        <ol class="breadcrumb">
+                            @foreach(var segment in Model.FullPath.Split('\\', StringSplitOptions.RemoveEmptyEntries).Select((v, i) => new { i, v }))
                             {
                                 var active = segment.i == Model.FullPath.Split('\\', StringSplitOptions.RemoveEmptyEntries).Length - 1 ? "active" : "";
                                 <li class="breadcrumb-item @active">@segment.v</li>
                             }
-                        }
-                        else
-                        {
-                            foreach (var segment in ircInstance.ProcessedPath.Split('\\', StringSplitOptions.RemoveEmptyEntries).Select((v, i) => new { i, v }))
-                            {
-                                var active = segment.i == Model.FullPath.Split('\\', StringSplitOptions.RemoveEmptyEntries).Length - 1 ? "active" : "";
-                                <li class="breadcrumb-item @active">@segment.v</li>
-                            }
-                        }
-                    </ol>
+                        </ol>
+                    </div>
+                </td>
+            </tr>
+            <tr @(ViewBag.nazcaMode != null && ViewBag.nazcaMode ? "d-block mt-2 ps-2" : "")>
+                <td class="rounded">
+                    <h5 class="@(ViewBag.nazcaMode != null && ViewBag.nazcaMode ? "text-secondary" : "")">Wielkość</h5>
+                    <p>@Model.Size</p>
+                </td>
+            </tr>
+            <tr @(ViewBag.nazcaMode != null && ViewBag.nazcaMode ? "d-block mt-2 ps-2" : "")>
+                <td class="rounded">
+                    <h5 class="@(ViewBag.nazcaMode != null && ViewBag.nazcaMode ? "text-secondary" : "")">Czas trwania</h5>
+                    <p>@Model.Duration.ToString(@"hh\:mm\:ss")</p>
+                </td>
+            </tr>
+            <tr @(ViewBag.nazcaMode != null && ViewBag.nazcaMode ? "d-block mt-2 ps-2" : "")>
+                <td class="rounded">
+                    <h5 class="@(ViewBag.nazcaMode != null && ViewBag.nazcaMode ? "text-secondary" : "")">Typ pliku</h5>
+                    <p>@Html.DisplayFor(model => model.MimeType)</p>
+                </td>
+            </tr>
+        </table>
+        <div class="@(ViewBag.nazcaMode != null && ViewBag.nazcaMode ? "mt-3" : "container")">
+            <div class="@(ViewBag.nazcaMode != null && ViewBag.nazcaMode ? "d-flex w-100" : "row")">
+                <div class="col"></div>
+                <div class="col-4 w-50 d-flex justify-content-end align-items-center grabor mt-2 pt-3">
+                    <a href="/Films@(ViewBag.nazcaMode != null && ViewBag.nazcaMode ? "/Nazca" : "")" id="stopButton" class="btn btn-danger me-2">Anuluj</a>
+                    <a id="playButton" class="btn btn-success @if (!ircInstance.ReadyToGo || ircInstance.IsPlaying) { <text>disabled</text> }" onclick="startPlaying()">Odtwórz</a>
                 </div>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <h5>Wielkość</h5>
-                <p>@Model.Size</p>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <h5>Czas trwania</h5>
-                <p>@Model.Duration.ToString(@"hh\:mm\:ss")</p>
-            </td>
-        </tr>
-        <tr>
-            <td>
-                <h5>Typ pliku</h5>
-                <p>@Html.DisplayFor(model => model.MimeType)</p>
-            </td>
-        </tr>
-    </table>
-    <div class="container">
-        <div class="row">
-            <div class="col"></div>
-            <div class="col-4 w-50 d-flex justify-content-end align-items-center border-top border-disabled mt-2 pt-3">
-                <a id="stopButton" class="btn btn-danger me-2 @if (!ircInstance.ReadyToGo || !ircInstance.IsPlaying) { <text>disabled</text> }" onclick="stopPlaying()">Anuluj</a>
-                <a id="playButton" class="btn btn-success @if (!ircInstance.ReadyToGo || ircInstance.IsPlaying) { <text>disabled</text> }" onclick="startPlaying()">Odtwórz</a>
             </div>
         </div>
     </div>
@@ -72,6 +117,8 @@ else
 }
 
 <script>
+    var isThatPlayedVideo = false;
+    console.log("Wideo @Model?.ID, ścieżka @Model?.FullPath");
     var connection = new signalR.HubConnectionBuilder()
         .withUrl("/videoHub")
         .build();
@@ -94,16 +141,14 @@ else
             child.classList.add(active);
     });
 
-    connection.on("toggleButtons", function (stopButtonState, playButtonState) {
-        var stopButton = document.getElementById("stopButton");
+    connection.on("setPlayedVideo", function (active) {
+        isThatPlayedVideo = active == '@Model?.ID';
+        console.log("Odtwarzane wideo (" + isThatPlayedVideo + ") " + active + ". Moje wideo @Model?.ID");
+    });
+
+    connection.on("toggleButtons", function (playButtonState) {
         var playButton = document.getElementById("playButton");
         
-        if (stopButtonState != null) {
-            if (stopButtonState)
-                stopButton.classList.remove("disabled");
-            else
-                stopButton.classList.add("disabled");
-        }
         if (playButtonState != null) {
             if (playButtonState)
                 playButton.classList.remove("disabled");
@@ -111,7 +156,25 @@ else
                 playButton.classList.add("disabled");
         }
 
-        console.log("Ustawiam stopButton na " + stopButtonState + " oraz playButton na " + playButtonState);
+        console.log("Ustawiam playButton na " + playButtonState);
+    });
+
+    connection.on("setAElementReturn", function (state) {
+        var stopButton = document.getElementById("stopButton");
+        if (stopButton != null) {
+            if (state || !isThatPlayedVideo) {
+                stopButton.removeAttribute("onclick");
+                stopButton.setAttribute("href", "/Films@(ViewBag.nazcaMode != null && ViewBag.nazcaMode ? "/Nazca" : "")");
+                console.log("Ustawiam parametry przycisku (cofanie) na onclick=" + stopButton.getAttribute("onclick") + ", href=" + stopButton.getAttribute("href"));
+            }
+            else {
+                stopButton.setAttribute("onclick", "stopPlaying()");
+                stopButton.removeAttribute("href");
+                console.log("Ustawiam parametry przycisku (anulowanie) na onclick=" + stopButton.getAttribute("onclick") + ", href=" + stopButton.getAttribute("href"));
+            }
+        }
+
+        console.log("Ustawiam playButton na " + playButtonState);
     });
 
     // Rozpoczęcie połączenia z hubem
@@ -143,57 +206,60 @@ else
     }
 
     function stopPlaying() {
-        // Wywołanie żądania AJAX
-        var xhr = new XMLHttpRequest();
-        xhr.open('POST', '/StopVideo', true);
-        xhr.setRequestHeader('Content-Type', 'application/json');
+        if (isThatPlayedVideo) {
+            // Wywołanie żądania AJAX
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', '/StopVideo', true);
+            xhr.setRequestHeader('Content-Type', 'application/json');
 
-        xhr.onload = function () {
-            if (xhr.status >= 200 && xhr.status < 400) {
-                console.log("Anulowano przetwarzanie filmu @Model?.Title");
-            } else {
+            xhr.onload = function () {
+                if (xhr.status >= 200 && xhr.status < 400) {
+                    console.log("Anulowano przetwarzanie filmu @Model?.Title");
+                } else {
+                    console.error("Błąd podczas wywoływania żądania AJAX");
+                }
+            };
+            xhr.onerror = function () {
                 console.error("Błąd podczas wywoływania żądania AJAX");
-            }
-        };
-        xhr.onerror = function () {
-            console.error("Błąd podczas wywoływania żądania AJAX");
-        };
-        xhr.send(JSON.stringify({ path: '@Model?.FullPath' }));
+            };
+            xhr.send(JSON.stringify({ path: '@Model?.FullPath' }));
 
-        var ol = document.getElementById("filePath").querySelector("ol");
-        while (ol.firstChild) {
-            ol.removeChild(ol.firstChild);
+            var ol = document.getElementById("filePath").querySelector("ol");
+            while (ol.firstChild) {
+                ol.removeChild(ol.firstChild);
+            }
+            var segments = "@Model?.FullPath".split('\\').filter(function (segment) {
+                return segment.trim() !== '';
+            });
+            segments.forEach(function (segment, index) {
+                var active = index === segments.length - 1 ? "active" : "";
+                var li = document.createElement("li");
+                li.classList.add("breadcrumb-item");
+                if (active != "")
+                    li.classList.add(active);
+                li.textContent = segment;
+                ol.appendChild(li);
+            });
         }
-        var segments = "@Model?.FullPath".split('\\').filter(function (segment) {
-            return segment.trim() !== '';
-        });
-        segments.forEach(function (segment, index) {
-            var active = index === segments.length - 1 ? "active" : "";
-            var li = document.createElement("li");
-            li.classList.add("breadcrumb-item");
-            if (active != "")
-                li.classList.add(active);
-            li.textContent = segment;
-            ol.appendChild(li);
-        });
     }
 
     function updateDiv(content, active, lastActive) {
-        var ol = document.getElementById("filePath").querySelector("ol");
-        
-        var segments = content.split('\\').filter(function (segment) {
-            return segment.trim() !== '';
-        });
+        if (isThatPlayedVideo) {
+            var ol = document.getElementById("filePath").querySelector("ol");
+            var segments = content.split('\\').filter(function (segment) {
+                return segment.trim() !== '';
+            });
 
-        segments.forEach(function (segment, index) {
-            if (lastActive && index == segments.length - 1) {
-                active = "active";
-            }
-            ol.appendChild(getLiElement(segment, active));
-        });
+            segments.forEach(function (segment, index) {
+                if (lastActive && index == segments.length - 1) {
+                    active = "active";
+                }
+                ol.appendChild(getLiElement(segment, active));
+            });
 
-        if (content != '@Model?.FullPath')
-            ol.appendChild(getLiElement("", false));
+            if (content != '@Model?.FullPath')
+                ol.appendChild(getLiElement("", false));
+        }
     }
 
     function getLiElement(content, active) {
@@ -208,9 +274,11 @@ else
     }
 
     function clearDiv() {
-        var ol = document.getElementById("filePath").querySelector("ol");
-        while (ol.firstChild) {
-            ol.removeChild(ol.firstChild);
+        if (isThatPlayedVideo) {
+            var ol = document.getElementById("filePath").querySelector("ol");
+            while (ol.firstChild) {
+                ol.removeChild(ol.firstChild);
+            }
         }
     }
 </script>

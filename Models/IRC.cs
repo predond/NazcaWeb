@@ -36,7 +36,7 @@ namespace NazcaWeb.Models
         public IRC(string deviceAddress, IHubContext<VideoHub> hubContext)
         {
             _hubContext = hubContext;
-            Task.Run(() => {
+            Task.Run(async () => {
                 controller = new IRD(deviceAddress);
                 cancellationTokenSource = new CancellationTokenSource();
                 cancellationToken = cancellationTokenSource.Token;
@@ -56,8 +56,9 @@ namespace NazcaWeb.Models
                 watcher.Error += Watcher_Error;
                 watcher.EnableRaisingEvents = true;
                 playingHistory = new Stack<string>();
-                Initialized?.Invoke(this, EventArgs.Empty);
+                //Initialized?.Invoke(this, EventArgs.Empty);
                 ReadyToGo = true;
+                await _hubContext.Clients.All.SendAsync("toggleButtons", true);
             });
         }
 
@@ -141,7 +142,10 @@ namespace NazcaWeb.Models
             {
                 IsPlaying = true;
                 playingHistory.Clear();
-                VideoStarted?.Invoke(this, new VideoEventArgs(video));
+                //VideoStarted?.Invoke(this, new VideoEventArgs(video));
+                await _hubContext.Clients.All.SendAsync("setPlayedVideo", video.ID);
+                await _hubContext.Clients.All.SendAsync("toggleButtons", false);
+                await _hubContext.Clients.All.SendAsync("setAElementReturn", false);
                 var processedPath = StartPath;
                 onSegmentProcessed(processedPath, false, false);
                 if (startTV)
@@ -219,13 +223,18 @@ namespace NazcaWeb.Models
                         playingHistory.Push("TV.Arrow up");
                         onSegmentProcessed(videosList[i].Split('\\').Last(), false, true);
                         ProcessedPath = videosList[i].Replace("\\", "\\\\");
-                        ActualPathChanged?.Invoke(this, ProcessedPath);
+                        //ActualPathChanged?.Invoke(this, ProcessedPath);
+                        await _hubContext.Clients.All.SendAsync("clearDiv");
+                        await _hubContext.Clients.All.SendAsync("updateDiv", ProcessedPath);
                         Console.WriteLine("Przechodzę przez... " + videosList[i].Split('\\').Last());
                         await Task.Delay(480, cancellationToken);
                     }
+
                     onSegmentProcessed(videosList[targetIndex].Split('\\').Last(), File.Exists(videosList[targetIndex]), true);
                     ProcessedPath = videosList[targetIndex].Replace("\\", "\\\\");
-                    ActualPathChanged?.Invoke(this, ProcessedPath);
+                    //ActualPathChanged?.Invoke(this, ProcessedPath);
+                    await _hubContext.Clients.All.SendAsync("clearDiv");
+                    await _hubContext.Clients.All.SendAsync("updateDiv", ProcessedPath);
 
                     //MessageBox.Show("OK");
                     await Task.Delay(750, cancellationToken);
@@ -235,7 +244,13 @@ namespace NazcaWeb.Models
                     await Task.Delay(750, cancellationToken);
                 }
                 IsPlaying = false;
-                VideoStopped?.Invoke(this, new VideoEventArgs(video));
+                if (!cancellationToken.IsCancellationRequested)
+                {
+                    await _hubContext.Clients.All.SendAsync("restorePath");
+                    await _hubContext.Clients.All.SendAsync("toggleButtons", true);
+                    await _hubContext.Clients.All.SendAsync("setAElementReturn", true);
+                }
+                //VideoStopped?.Invoke(this, new VideoEventArgs(video));
             }, cancellationToken);
 
             return true;
@@ -254,7 +269,9 @@ namespace NazcaWeb.Models
                 await Task.Delay(750, cancellationToken).ContinueWith(tsk => { });
                 Console.WriteLine("Cofam \"" + segment + "\" ze ścieżki \"" + ProcessedPath + "\", do ścieżki \"" + ProcessedPath.Replace(segment, "").Trim('\\') + "\".");
                 ProcessedPath = ProcessedPath.Replace(segment, "").TrimEnd('\\');
-                ActualPathChanged?.Invoke(this, ProcessedPath);
+                //ActualPathChanged?.Invoke(this, ProcessedPath);
+                await _hubContext.Clients.All.SendAsync("clearDiv");
+                await _hubContext.Clients.All.SendAsync("updateDiv", ProcessedPath);
             }
 
             if (!cancellationToken.IsCancellationRequested)
@@ -269,7 +286,11 @@ namespace NazcaWeb.Models
             }*/
 
             videoReturning = false;
-            VideoStopped?.Invoke(this, EventArgs.Empty);
+            IsPlaying = false;
+            //VideoStopped?.Invoke(this, EventArgs.Empty);
+            await _hubContext.Clients.All.SendAsync("restorePath");
+            await _hubContext.Clients.All.SendAsync("toggleButtons", true);
+            await _hubContext.Clients.All.SendAsync("setAElementReturn", true);
         }
 
         public bool ChangeFileName(VideoItem video, string name = "", string extension = "")

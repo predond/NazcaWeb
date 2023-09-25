@@ -158,11 +158,6 @@ namespace NazcaWeb.Models
             var id = "section_" + guid;
             var collapse = "collapse_" + guid;
             var accordion = rootAccordion != "" ? rootAccordion : "accordion_" + guid;
-            var path = item.Files.FirstOrDefault()?.FullPath;
-            if (path != null)
-            {
-                path = Directory.GetParent(path)?.FullName;
-            }
             var bg = level % 2 == 0 ? "even" : "even-white";
 
             if (item.Subfolders.Count > 0 || item.Files.Count > 1)
@@ -177,7 +172,7 @@ namespace NazcaWeb.Models
                                         html += "<p>" + item.Name + "</p>";
                                     html += "</div>";
                                     html += "<div class=\"d-none d-md-block\">";
-                                        html += "<p>" + path.Replace("\\", "\\\\") + "</p>";
+                                        html += "<p>" + item.FullPath.Replace("\\", "\\\\") + "</p>";
                                     html += "</div>";
                                 html += "</div>";
                                 html += "<i class=\"bi-caret-up-fill\"></i>";
@@ -202,7 +197,7 @@ namespace NazcaWeb.Models
                                 {
                                     var bg_color = bg == "even" ? (video.Index % 2 == 0 ? "even-white" : "even") : (video.Index % 2 == 0 ? "even" : "even-white");
                                     html += "<div class=\"rounded shadow-sm p-3 my-2 d-flex justify-content-between " + bg_color + "\">";
-                                        html += $"<a href=\"/VideoDetails?videoid={video.Element.ID}\" class=\"text-body link-underline link-underline-opacity-0 w-100\">" + video.Element.Title + "</a>";
+                                        html += $"<a href=\"/Films/Details?videoid={video.Element.ID}\" class=\"text-body link-underline link-underline-opacity-0 w-100\">" + video.Element.Title + "</a>";
                                     html += "</div>";
                                 }
                             html += "</div>";
@@ -224,7 +219,7 @@ namespace NazcaWeb.Models
                     {
                         var bg_color = bg == "even" ? (video.Index % 2 == 0 ? "even-white" : "even") : (video.Index % 2 == 0 ? "even" : "even-white");
                         html += "<div class=\"rounded shadow-sm p-3 my-2 d-flex justify-content-between " + bg_color + "\">";
-                        html += $"<a href=\"/VideoDetails?videoid={video.Element.ID}\" class=\"text-body link-underline link-underline-opacity-0 w-100\">" + video.Element.Title + "</a>";
+                        html += $"<a href=\"/Films/Details?videoid={video.Element.ID}\" class=\"text-body link-underline link-underline-opacity-0 w-100\">" + video.Element.Title + "</a>";
                         html += "</div>";
                     }
                 }
@@ -233,12 +228,12 @@ namespace NazcaWeb.Models
             {
                 var index = item.Files.FirstOrDefault()?.ID;
 
-                html += $"<a href=\"/VideoDetails?videoid={index}\" class= \"rounded shadow-sm p-3 my-2 d-flex justify-content-between text-body link-underline link-underline-opacity-0 " + bg + "\">";
+                html += $"<a href=\"/Films/Details?videoid={index}\" class= \"rounded shadow-sm p-3 my-2 d-flex justify-content-between text-body link-underline link-underline-opacity-0 " + bg + "\">";
                     html += "<div>";
                         html += "<p>" + item.Name + "</p>";
                     html += "</div>";
                     html += "<div class= \"d-none d-md-block\" >";
-                        html += "<p>" + path + "</p>";
+                        html += "<p>" + item.FullPath + "</p>";
                     html += "</div>";
                 html += "</a>";
             }
@@ -256,11 +251,6 @@ namespace NazcaWeb.Models
             var id = "section_" + guid;
             var collapse = "collapse_" + guid;
             var accordion = rootAccordion != "" ? rootAccordion : "accordion_" + guid;
-            var path = item.Files.FirstOrDefault()?.FullPath;
-            if (path != null)
-            {
-                path = Directory.GetParent(path)?.FullName;
-            }
 
             var ps = 0.8;
             if (item.Subfolders.Count > 0 || item.Files.Count > 1)
@@ -275,7 +265,7 @@ namespace NazcaWeb.Models
                                         html += $"<p>{item.Name}</p>";
                                     html += $"</div>";
                                     html += $"<div class=\"d-none d-md-block\">";
-                                        html += $"<p>{path.Replace("\\", "\\\\")}</p>";
+                                        html += $"<p>{item.FullPath.Replace("\\", "\\\\")}</p>";
                                     html += $"</div>";
                                 html += $"</div>";
                                 html += $"<i class=\"bi-caret-up-fill\"></i>";
@@ -295,7 +285,7 @@ namespace NazcaWeb.Models
                                 foreach (var video in item.Files.OrderBy(v => v.Title).Select((element, index) => new { Index = index, Element = element }).ToArray())
                                 {
                                     html += $"<div class=\"d-flex justify-content-between\">";
-                                        html += $"<a href=\"/VideoDetails?videoid={video.Element.ID}\" class=\"text-white link-underline link-underline-opacity-0 w-100 ps-2 py-1\" style=\"margin-left: {ps.ToString().Replace(',', '.')}%;\"> {video.Element.Title}</a>";
+                                        html += $"<a href=\"/Films/Details/Nazca?videoid={video.Element.ID}\" class=\"text-white link-underline link-underline-opacity-0 w-100 ps-2 py-1\" style=\"margin-left: {ps.ToString().Replace(',', '.')}%;\"> {video.Element.Title}</a>";
                                     html += $"</div>";
                                 }
                                 html += $"<span class=\"mb-1\" style=\"display: inline-block;\"></span>";
@@ -314,7 +304,7 @@ namespace NazcaWeb.Models
                     foreach (var video in item.Files.OrderBy(v => v.Title).Select((element, index) => new { Index = index, Element = element }).ToArray())
                     {
                         html += $"<div class=\"d-flex justify-content-between\">";
-                        html += $"<a href=\"/VideoDetails?videoid={video.Element.ID}\" class=\"text-white link-underline link-underline-opacity-0 w-100 ps-2 py-1\" style=\"margin-left: {ps.ToString().Replace(',', '.')}%;\"> {video.Element.Title}</a>";
+                        html += $"<a href=\"/Films/Details/Nazca?videoid={video.Element.ID}\" class=\"text-white link-underline link-underline-opacity-0 w-100 ps-2 py-1\" style=\"margin-left: {ps.ToString().Replace(',', '.')}%;\"> {video.Element.Title}</a>";
                         html += $"</div>";
                     }
                 }
@@ -322,12 +312,12 @@ namespace NazcaWeb.Models
             else if (item.Files.Count == 1)
             {
                 var index = item.Files.FirstOrDefault()?.ID;
-                html += $"<a href=\"/VideoDetails?videoid={index}\" class=\"d-flex justify-content-between text-white link-underline link-underline-opacity-0 ps-2 pt-2\" style=\"margin-left: {(ps + 0.8).ToString().Replace(',', '.')}%;\">";
+                html += $"<a href=\"/Films/Details?videoid={index}\" class=\"d-flex justify-content-between text-white link-underline link-underline-opacity-0 ps-2 pt-2\" style=\"margin-left: {(ps + 0.8).ToString().Replace(',', '.')}%;\">";
                     html += $"<div>";
                         html += $"<p>{item.Name}</p>";
                     html += $"</div>";
                     html += $"<div class=\"d-none d-md-block\">";
-                        html += $"<p>{path}</p>";
+                        html += $"<p>{item.FullPath}</p>";
                     html += $"</div>";
                 html += $"</a>";
             }
