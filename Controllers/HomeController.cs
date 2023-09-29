@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using NazcaWeb.Hubs;
 using NazcaWeb.Models;
 using System;
@@ -44,8 +45,9 @@ namespace NazcaWeb.Controllers
         }
 
         [HttpGet]
-        public IActionResult GetNewList(bool nazca = false)
+        public IActionResult GetNewList(bool nazca = false, string videosOrder = "")
         {
+            ViewBag.videosOrder = videosOrder.Equals("file");
             return PartialView(nazca ? "_VideosListNazca" : "_VideosListNormal", VideoModel.GroupedFiles);
         }
 
@@ -143,6 +145,23 @@ namespace NazcaWeb.Controllers
             await _hubContext.Clients.All.SendAsync("overwriteDiv", "", "active");
         }
 
+        [HttpPost]
+        public ActionResult ChangeFileName([FromBody] ChangeFileNameRequest req)
+        {
+            var video = VideoModel.GetVideoById(req.videoId);
+            var oldName = video?.Title;
+            if (video != null && req.newName != null && req.newName != "" && req.newName != video.Title)
+                if (_irc.ChangeFileName(video, req.newName))
+                {
+                    Console.WriteLine("Zmieniono nazwę pliku z " + oldName + " na " + video.Title);
+                    return Json(new { name = video.Title, path = video.FullPath });
+                }
+
+            Console.WriteLine("Nie udało się zmienić nazwy pliku " + oldName);
+            return Json(new { name = "", path = "" });
+        }
+
+
         [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
         public IActionResult Error()
         {
@@ -184,5 +203,11 @@ namespace NazcaWeb.Controllers
     public class StopVideoRequest
     {
         public string Path { get; set; }
+    }
+
+    public class ChangeFileNameRequest
+    {
+        public Guid videoId { get; set; }
+        public string newName { get; set; }
     }
 }

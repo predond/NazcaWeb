@@ -46,7 +46,7 @@ namespace NazcaWeb.Models
                     structure.Files.Add(new VideoItem()
                     {
                         Title = Path.GetFileNameWithoutExtension(file.FullName),
-                        FullPath = file.FullName.Replace("\\", "\\\\"),
+                        FullPath = file.FullName,
                         Size = Math.Round(size, 2) + " " + Enum.GetName(typeof(VideoItem.Sizes), counter),
                         IsDirectory = System.IO.File.GetAttributes(file.FullName) == FileAttributes.Directory
                     });

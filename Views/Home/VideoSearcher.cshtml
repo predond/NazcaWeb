@@ -40,14 +40,36 @@
         background-color: #343a40;
         color: white;
     }
+
+    .btn-check + .btn {
+        transition: all 0.3s ease-in-out;
+    }
+
+    .btn-check:checked + .btn {
+        height: 110%;
+    }
 </style>
 
 <form action="VideoSearcher" method="post">
-    <div class="input-group mb-3">
+    <div class="input-group">
         <input type="text" class="form-control" name="search" placeholder="Wyszukaj..." aria-label="Wyszukaj..." aria-describedby="search-button">
         <button class="btn custom-button" type="submit" id="search-button">
             <i class="bi bi-search"></i>
         </button>
+        <div class="form-check form-check-inline mx-0 px-0 ms-3">
+            <input type="radio" class="btn-check" name="options-outlined" id="success-outlined" autocomplete="off" value="directory" checked>
+            <label class="btn btn-outline-light bi-folder-fill" for="success-outlined"></label>
+        </div>
+        <div class="form-check form-check-inline mx-0 px-0">
+            <input type="radio" class="btn-check" name="options-outlined" id="danger-outlined" autocomplete="off" value="file">
+            <label class="btn btn-secondary bi-file-earmark-fill" for="danger-outlined"></label>
+        </div>
+    </div>
+
+    <div class="row justify-content-end mb-3">
+        <div class="col-auto">
+            
+        </div>
     </div>
 </form>
 
@@ -129,11 +151,40 @@ else
 }
 
 <script>
+
+    var radioButtons = document.querySelectorAll('.btn-check');
+
+    radioButtons.forEach(function (radioButton) {
+        radioButton.addEventListener('change', function () {
+            radioButtons.forEach(function (rb) {
+                if (rb.checked) {
+                    rb.nextElementSibling.classList.remove('btn-secondary');
+                    rb.nextElementSibling.classList.add('btn-outline-light');
+
+                    updateVideosList(radioButton.value);
+                } else {
+                    rb.nextElementSibling.classList.remove('btn-outline-light');
+                    rb.nextElementSibling.classList.add('btn-secondary');
+                }
+            });
+        });
+    });
+
     var connection = new signalR.HubConnectionBuilder()
         .withUrl("/videoHub")
         .build();
 
-    connection.on("updateVideosList", function () {
+    connection.start()
+        .then(function () {
+            console.log("Połączenie z hubem nawiązane");
+        })
+        .catch(function (err) {
+            console.error("Błąd podczas nawiązywania połączenia z hubem:", err);
+        });
+
+    connection.on("updateVideosList", updateVideosList);
+
+    function updateVideosList(order = '') {
         //var accordion = document.getElementById('listContent');
         //accordion.innerHTML = "";
 
@@ -144,10 +195,10 @@ else
         }
 
         $.ajax({
-            url: '/GetNewList?nazca=@ViewBag.nazcaMode',
+            url: '/GetNewList?nazca=@ViewBag.nazcaMode' + (order != '' ? '&videosOrder=' + order : ''),
             method: 'GET',
             success: function (result) {
-                    $('#listContent').html(result);
+                $('#listContent').html(result);
             }
         });
 
@@ -161,13 +212,5 @@ else
         //    console.log(html);
         //    accordion.innerHTML = html;
         //}
-    });
-
-    connection.start()
-        .then(function () {
-            console.log("Połączenie z hubem nawiązane");
-        })
-        .catch(function (err) {
-            console.error("Błąd podczas nawiązywania połączenia z hubem:", err);
-        });
+    }
 </script>

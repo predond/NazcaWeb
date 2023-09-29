@@ -37,5 +37,5 @@
 </style>
 
 <div id="accordion" class="bg-dark bg-opacity-75 text-white p-4 rounded">
-    @Html.Raw(await VideoModel.RenderNazcaAccordionItem(Model, "accordion"))
+    @Html.Raw(await VideoModel.RenderNazcaAccordionItem(Model, "accordion", 0, ViewBag.videosOrder != null ? (bool)ViewBag.videosOrder : false))
 </div>

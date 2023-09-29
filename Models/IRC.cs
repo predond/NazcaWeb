@@ -35,7 +35,16 @@ namespace NazcaWeb.Models
 
         public IRC(string deviceAddress, IHubContext<VideoHub> hubContext)
         {
+            foreach(var drive in DriveInfo.GetDrives())
+            {
+                if (drive.VolumeLabel.Equals("Scientia"))
+                {
+                    StartPath = StartPath.Replace("E:\\", drive.RootDirectory.Name);
+                }
+            }
+
             _hubContext = hubContext;
+
             Task.Run(async () => {
                 controller = new IRD(deviceAddress);
                 cancellationTokenSource = new CancellationTokenSource();
@@ -72,21 +81,34 @@ namespace NazcaWeb.Models
             if (targetElem == null)
                 return;
 
-            var counter = 1;
-            double size = new FileInfo(e.FullPath).Length;
-            while (size > 1024)
+            if (File.Exists(e.FullPath))
             {
-                size /= 1024;
-                counter++;
-            }
+                var counter = 1;
+                double size = new FileInfo(e.FullPath).Length;
+                while (size > 1024)
+                {
+                    size /= 1024;
+                    counter++;
+                }
 
-            targetElem.Files.Add(new VideoItem()
+                targetElem.Files.Add(new VideoItem()
+                {
+                    Title = Path.GetFileNameWithoutExtension(e.FullPath),
+                    FullPath = e.FullPath.Replace("\\", "\\\\"),
+                    Size = Math.Round(size, 2) + " " + Enum.GetName(typeof(VideoItem.Sizes), counter),
+                    IsDirectory = File.GetAttributes(e.FullPath) == FileAttributes.Directory
+                });
+            }
+            else if (Directory.Exists(e.FullPath))
             {
-                Title = Path.GetFileNameWithoutExtension(e.FullPath),
-                FullPath = e.FullPath.Replace("\\", "\\\\"),
-                Size = Math.Round(size, 2) + " " + Enum.GetName(typeof(VideoItem.Sizes), counter),
-                IsDirectory = File.GetAttributes(e.FullPath) == FileAttributes.Directory
-            });
+                targetElem.Subfolders.Add(new FileSystemItem()
+                {
+                    Name = Path.GetFileName(e.FullPath) + "",
+                    FullPath = e.FullPath,
+                    Subfolders = new List<FileSystemItem>(),
+                    Files = new List<VideoItem>()
+                });
+            }
 
             _hubContext.Clients.All.SendAsync("updateVideosList");
             Console.WriteLine($"Dodano plik {Path.GetFileNameWithoutExtension(e.FullPath)} ze ścieżką {e.FullPath.Replace("\\", "\\\\")}");
@@ -97,17 +119,35 @@ namespace NazcaWeb.Models
             if (e == null)
                 return;
 
-            var targetItem = VideoModel.GetVideoItem(e.OldFullPath);
+            if (File.Exists(e.FullPath))
+            {
+                var targetItem = VideoModel.GetVideoItem(e.OldFullPath);
 
-            if (targetItem == null)
-                return;
+                if (targetItem == null)
+                    return;
+                ChangeFileName(targetItem, Path.GetFileNameWithoutExtension(e.FullPath.Replace(".mts", "")), Path.GetExtension(e.FullPath));
 
-            ChangeFileName(targetItem, Path.GetFileNameWithoutExtension(e.FullPath.Replace(".mts", "")), Path.GetExtension(e.FullPath));
+                _hubContext.Clients.All.SendAsync("clearDiv", true);
+                _hubContext.Clients.All.SendAsync("updateTitle", Path.GetFileNameWithoutExtension(e.Name));
+                _hubContext.Clients.All.SendAsync("updateDiv", e.FullPath, false, true, true);
+                
+                Console.WriteLine($"Zmieniono dane pliku." +
+                    $"\n\t\tTytuł z: {Path.GetFileNameWithoutExtension(e.OldFullPath)} na {targetItem.Title}." +
+                    $"\n\t\tŚcieżka z: {e.OldFullPath} na {targetItem.FullPath.Replace("\\\\", "\\")}.");
+            }
+            else if (Directory.Exists(e.FullPath))
+            {
+                var targetItem = VideoModel.GetDirectoryItem(e.OldFullPath);
+                if (targetItem == null)
+                    return;
+                ChangeDirectoryName(targetItem, Path.GetFileName(e.FullPath));
+            
+                Console.WriteLine($"Zmieniono dane katalogu." +
+                        $"\n\t\tTytuł z: {Path.GetFileName(e.OldFullPath)} na {targetItem.Name}." +
+                        $"\n\t\tŚcieżka z: {e.OldFullPath} na {targetItem.FullPath.Replace("\\\\", "\\")}.");
+            }
 
             _hubContext.Clients.All.SendAsync("updateVideosList");
-            Console.WriteLine($"Zmieniono dane pliku." +
-                $"\n\t\tTytuł z: {Path.GetFileNameWithoutExtension(e.OldFullPath)} na {targetItem.Title}." +
-                $"\n\t\tŚcieżka z: {e.OldFullPath} na {targetItem.FullPath.Replace("\\\\", "\\")}.");
         }
 
         private void Watcher_Deleted(object sender, FileSystemEventArgs e)
@@ -118,6 +158,8 @@ namespace NazcaWeb.Models
             VideoModel.RemoveVideoItem(e.FullPath);
 
             _hubContext.Clients.All.SendAsync("updateVideosList");
+            _hubContext.Clients.All.SendAsync("showDeletedMessage", true);
+            _hubContext.Clients.All.SendAsync("toggleButtons", false);
             Console.WriteLine($"Usunięto plik {e.FullPath}.");
         }
 
@@ -310,14 +352,48 @@ namespace NazcaWeb.Models
             if (Path.GetDirectoryName(path) != Path.GetDirectoryName(newPath))
                 return false;
 
-            if (File.Exists(path))
-                File.Move(path, newPath);
+            try
+            {
+                if (File.Exists(path))
+                    File.Move(path, newPath);
 
-            if (File.Exists(newPath + ".mts"))
-                File.Move(newPath + ".mts", newPath.Replace(".mts", ""));
+                if (File.Exists(newPath + ".mts"))
+                    File.Move(newPath + ".mts", newPath.Replace(".mts", ""));
+            }
+            catch (Exception)
+            {
+                return false;
+            }
 
             video.FullPath = newPath.Replace("\\", "\\\\");
             video.Title = Path.GetFileNameWithoutExtension(newPath);
+
+            return true;
+        }
+
+        public bool ChangeDirectoryName(FileSystemItem directory, string name = "")
+        {
+            if (directory == null)
+                return false;
+
+            var path = directory.FullPath.Replace("\\\\", "\\");
+            var newPath = Path.Combine(Path.GetDirectoryName(path) + "", name != "" ? name : directory.Name);
+
+            if (Path.GetDirectoryName(path) != Path.GetDirectoryName(newPath))
+                return false;
+
+            try
+            {
+                if (Directory.Exists(path))
+                    Directory.Move(path, newPath);
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+
+            directory.FullPath = newPath.Replace("\\", "\\\\");
+            directory.Name = Path.GetFileName(newPath);
 
             return true;
         }

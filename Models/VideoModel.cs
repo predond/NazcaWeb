@@ -97,6 +97,25 @@ namespace NazcaWeb.Models
             return targetElem;
         }
 
+        public static FileSystemItem? GetDirectoryParentItem(string path)
+        {
+            var targetElem = GroupedFiles;
+
+            var processPath = path.Replace(IRC.StartPath, "").Split("\\", StringSplitOptions.RemoveEmptyEntries).ToList();
+            foreach (var part in processPath)
+            {
+                if (targetElem == null)
+                    return null;
+
+                if (targetElem.Subfolders.Any(obj => obj.Name.Contains(part)))
+                {
+                    targetElem = targetElem.Subfolders.Where(obj => obj.Name.Equals(part)).FirstOrDefault();
+                }
+            }
+
+            return targetElem;
+        }
+
         public static VideoItem? GetVideoItem(string path, FileSystemItem? parent = null)
         {
             if (parent == null)
@@ -105,15 +124,34 @@ namespace NazcaWeb.Models
                 return parent.Files.Where(obj => obj.Title.Equals(Path.GetFileNameWithoutExtension(path))).FirstOrDefault();
         }
 
+        public static FileSystemItem? GetDirectoryItem(string path, FileSystemItem? parent = null)
+        {
+            if (parent == null)
+            {
+                var root = GetDirectoryParentItem(path);
+                var subs = root?.Subfolders.Where(obj => obj.Name.Equals(Path.GetFileName(path))).FirstOrDefault();
+                return subs;
+            }
+            else
+                return parent.Subfolders.Where(obj => obj.Name.Equals(Path.GetFileName(path))).FirstOrDefault();
+        }
+
         public static bool RemoveVideoItem(string path)
         {
-            var targetElem = GetVideoParentItem(path);
-            var deletionItem = GetVideoItem(path, targetElem);
+            var targetElem = !string.IsNullOrEmpty(Path.GetExtension(path)) ? GetVideoParentItem(path) : GetDirectoryParentItem(path);
+            var deletionItem = !string.IsNullOrEmpty(Path.GetExtension(path)) ? GetVideoItem(path, targetElem) : null;
 
-            if (targetElem == null || deletionItem == null)
+            if (targetElem == null)
                 return false;
 
-            targetElem.Files.Remove(deletionItem);
+            if (deletionItem != null)
+                targetElem.Files.Remove(deletionItem);
+            else
+            {
+                var subdir = targetElem.Subfolders.Where(d => d.FullPath == path).FirstOrDefault();
+                if (subdir != null)
+                    targetElem.Subfolders.Remove(subdir);
+            }
 
             return true;
         }
@@ -150,7 +188,7 @@ namespace NazcaWeb.Models
             return matchingStructure;
         }
 
-        public static async Task<dynamic> RenderAccordionItem(FileSystemItem item, string rootAccordion = "", int level = 0)
+        public static async Task<dynamic> RenderAccordionItem(FileSystemItem item, string rootAccordion = "", int level = 0, bool order = false)
         {
             var html = "";
 
@@ -159,6 +197,10 @@ namespace NazcaWeb.Models
             var collapse = "collapse_" + guid;
             var accordion = rootAccordion != "" ? rootAccordion : "accordion_" + guid;
             var bg = level % 2 == 0 ? "even" : "even-white";
+
+            Action<FileSystemItem, string, int, bool>[] renderActions = order
+                ? new Action<FileSystemItem, string, int, bool>[] { RenderFiles, RenderSubfolders }
+                : new Action<FileSystemItem, string, int, bool>[] { RenderSubfolders, RenderFiles };
 
             if (item.Subfolders.Count > 0 || item.Files.Count > 1)
             {
@@ -172,7 +214,7 @@ namespace NazcaWeb.Models
                                         html += "<p>" + item.Name + "</p>";
                                     html += "</div>";
                                     html += "<div class=\"d-none d-md-block\">";
-                                        html += "<p>" + item.FullPath.Replace("\\", "\\\\") + "</p>";
+                                        html += "<p>" + item.FullPath + "</p>";
                                     html += "</div>";
                                 html += "</div>";
                                 html += "<i class=\"bi-caret-up-fill\"></i>";
@@ -183,24 +225,15 @@ namespace NazcaWeb.Models
                                 accordion = "accordion_" + Guid.NewGuid();
                                 html += "<hr />";
                                 html += "<div id = \"" + accordion + "\">";
-                                    var subLevel = bg == "even" ? 1 : 0;
+                                var subLevel = bg == "even" ? 1 : 0;
 
-                                    foreach (var subdir in item.Subfolders.OrderBy(v => v.Name).Select((element, index) => new { Index = index, Element = element}).ToArray())
-                                    {
-                                        var result = await RenderAccordionItem(subdir.Element, accordion, subLevel);
-                                        subLevel = result.level;
-                                        html += result.html;
-                                    }
+                                // subs
+                                renderActions[0](item, accordion, subLevel, order);
                                 html += "</div>";
 
-                                foreach(var video in item.Files.OrderBy(v => v.Title).Select((element, index) => new { Index = index, Element = element }).ToArray())
-                                {
-                                    var bg_color = bg == "even" ? (video.Index % 2 == 0 ? "even-white" : "even") : (video.Index % 2 == 0 ? "even" : "even-white");
-                                    html += "<div class=\"rounded shadow-sm p-3 my-2 d-flex justify-content-between " + bg_color + "\">";
-                                        html += $"<a href=\"/Films/Details?videoid={video.Element.ID}\" class=\"text-body link-underline link-underline-opacity-0 w-100\">" + video.Element.Title + "</a>";
-                                    html += "</div>";
-                                }
-                            html += "</div>";
+                                // files
+                                renderActions[1](item, accordion, subLevel, order);
+                    html += "</div>";
                         html += "</div>";
                     html += "</div>";
                 }
@@ -208,20 +241,8 @@ namespace NazcaWeb.Models
                 {
                     var subLevel = bg == "even" ? 1 : 0;
 
-                    foreach (var subdir in item.Subfolders.OrderBy(v => v.Name).Select((element, index) => new { Index = index, Element = element }).ToArray())
-                    {
-                        var result = await RenderAccordionItem(subdir.Element, accordion, subLevel);
-                        subLevel = result.level;
-                        html += result.html;
-                    }
-
-                    foreach (var video in item.Files.OrderBy(v => v.Title).Select((element, index) => new { Index = index, Element = element }).ToArray())
-                    {
-                        var bg_color = bg == "even" ? (video.Index % 2 == 0 ? "even-white" : "even") : (video.Index % 2 == 0 ? "even" : "even-white");
-                        html += "<div class=\"rounded shadow-sm p-3 my-2 d-flex justify-content-between " + bg_color + "\">";
-                        html += $"<a href=\"/Films/Details?videoid={video.Element.ID}\" class=\"text-body link-underline link-underline-opacity-0 w-100\">" + video.Element.Title + "</a>";
-                        html += "</div>";
-                    }
+                    foreach (var action in renderActions)
+                        action(item, accordion, subLevel, order);
                 }
             }
             else if (item.Files.Count == 1)
@@ -230,12 +251,33 @@ namespace NazcaWeb.Models
 
                 html += $"<a href=\"/Films/Details?videoid={index}\" class= \"rounded shadow-sm p-3 my-2 d-flex justify-content-between text-body link-underline link-underline-opacity-0 " + bg + "\">";
                     html += "<div>";
-                        html += "<p>" + item.Name + "</p>";
+                        html += "<p>" + item.Files.FirstOrDefault()?.Title + "</p>";
                     html += "</div>";
                     html += "<div class= \"d-none d-md-block\" >";
-                        html += "<p>" + item.FullPath + "</p>";
+                        html += "<p>" + item.Files.FirstOrDefault()?.FullPath + "</p>";
                     html += "</div>";
                 html += "</a>";
+            }
+
+            async void RenderSubfolders(FileSystemItem item, string accordion, int subLevel = 0, bool order = false)
+            {
+                foreach (var subdir in item.Subfolders.OrderBy(v => v.Name).Select((element, index) => new { Index = index, Element = element }).ToArray())
+                {
+                    var result = await RenderAccordionItem(subdir.Element, accordion, subLevel, order);
+                    subLevel = result.level;
+                    html += result.html;
+                }
+            }
+
+            void RenderFiles(FileSystemItem item, string accordion, int subLevel, bool order)
+            {
+                foreach (var video in item.Files.OrderBy(v => v.Title).Select((element, index) => new { Index = index, Element = element }).ToArray())
+                {
+                    var bg_color = bg == "even" ? (video.Index % 2 == 0 ? "even-white" : "even") : (video.Index % 2 == 0 ? "even" : "even-white");
+                    html += "<div class=\"rounded shadow-sm p-3 my-2 d-flex justify-content-between " + bg_color + "\">";
+                    html += $"<a href=\"/Films/Details?videoid={video.Element.ID}\" class=\"text-body link-underline link-underline-opacity-0 w-100\">" + video.Element.Title + "</a>";
+                    html += "</div>";
+                }
             }
 
             level++;
@@ -243,7 +285,7 @@ namespace NazcaWeb.Models
             return new { level = level, html = html };
         }
 
-        public static async Task<string> RenderNazcaAccordionItem(FileSystemItem item, string rootAccordion = "", int level = 0)
+        public static async Task<string> RenderNazcaAccordionItem(FileSystemItem item, string rootAccordion = "", int level = 0, bool order = false)
         {
             var html = "";
 
@@ -253,6 +295,11 @@ namespace NazcaWeb.Models
             var accordion = rootAccordion != "" ? rootAccordion : "accordion_" + guid;
 
             var ps = 0.8;
+
+            Action<FileSystemItem, string, int, bool>[] renderActions = order
+                ? new Action<FileSystemItem, string, int, bool>[] { RenderFiles, RenderSubfolders }
+                : new Action<FileSystemItem, string, int, bool>[] { RenderSubfolders, RenderFiles };
+
             if (item.Subfolders.Count > 0 || item.Files.Count > 1)
             {
                 if (item.Name != "")
@@ -265,7 +312,7 @@ namespace NazcaWeb.Models
                                         html += $"<p>{item.Name}</p>";
                                     html += $"</div>";
                                     html += $"<div class=\"d-none d-md-block\">";
-                                        html += $"<p>{item.FullPath.Replace("\\", "\\\\")}</p>";
+                                        html += $"<p>{item.FullPath}</p>";
                                     html += $"</div>";
                                 html += $"</div>";
                                 html += $"<i class=\"bi-caret-up-fill\"></i>";
@@ -277,17 +324,11 @@ namespace NazcaWeb.Models
                                 accordion = "accordion_" + Guid.NewGuid();
                                 html += $"<div id = \"{accordion}\" >";
                                     var subLevel = ++level;
-                                    foreach (var subdir in item.Subfolders.OrderBy(v => v.Name).Select((element, index) => new { Index = index, Element = element }).ToArray())
-                                    {
-                                        html += await RenderNazcaAccordionItem(subdir.Element, accordion, subLevel);
-                                    }
+                                    // subs
+                                    renderActions[0](item, accordion, subLevel, order);
                                 html += $"</div>";
-                                foreach (var video in item.Files.OrderBy(v => v.Title).Select((element, index) => new { Index = index, Element = element }).ToArray())
-                                {
-                                    html += $"<div class=\"d-flex justify-content-between\">";
-                                        html += $"<a href=\"/Films/Details/Nazca?videoid={video.Element.ID}\" class=\"text-white link-underline link-underline-opacity-0 w-100 ps-2 py-1\" style=\"margin-left: {ps.ToString().Replace(',', '.')}%;\"> {video.Element.Title}</a>";
-                                    html += $"</div>";
-                                }
+                                // files
+                                renderActions[1](item, accordion, subLevel, order);
                                 html += $"<span class=\"mb-1\" style=\"display: inline-block;\"></span>";
                             html += $"</div>";
                         html += $"</div>";
@@ -296,30 +337,39 @@ namespace NazcaWeb.Models
                 else
                 {
                     var subLevel = ++level;
-                    foreach (var subdir in item.Subfolders.OrderBy(v => v.Name).Select((element, index) => new { Index = index, Element = element }).ToArray())
-                    {
-                        html += await RenderNazcaAccordionItem(subdir.Element, accordion, subLevel);
-                    }
-
-                    foreach (var video in item.Files.OrderBy(v => v.Title).Select((element, index) => new { Index = index, Element = element }).ToArray())
-                    {
-                        html += $"<div class=\"d-flex justify-content-between\">";
-                        html += $"<a href=\"/Films/Details/Nazca?videoid={video.Element.ID}\" class=\"text-white link-underline link-underline-opacity-0 w-100 ps-2 py-1\" style=\"margin-left: {ps.ToString().Replace(',', '.')}%;\"> {video.Element.Title}</a>";
-                        html += $"</div>";
-                    }
+                    foreach (var action in renderActions)
+                        action(item, accordion, subLevel, order);
                 }
             }
             else if (item.Files.Count == 1)
             {
                 var index = item.Files.FirstOrDefault()?.ID;
-                html += $"<a href=\"/Films/Details?videoid={index}\" class=\"d-flex justify-content-between text-white link-underline link-underline-opacity-0 ps-2 pt-2\" style=\"margin-left: {(ps + 0.8).ToString().Replace(',', '.')}%;\">";
+                html += $"<a href=\"/Films/Details?videoid={index}\" class=\"d-flex justify-content-between text-white link-underline link-underline-opacity-0 ps-2 pt-2\" style=\"margin-left: {ps.ToString().Replace(',', '.')}%;\">";
                     html += $"<div>";
-                        html += $"<p>{item.Name}</p>";
+                        html += $"<p>{item.Files.FirstOrDefault()?.Title}</p>";
                     html += $"</div>";
                     html += $"<div class=\"d-none d-md-block\">";
-                        html += $"<p>{item.FullPath}</p>";
+                        html += $"<p>{item.Files.FirstOrDefault()?.FullPath}</p>";
                     html += $"</div>";
                 html += $"</a>";
+            }
+
+            async void RenderSubfolders(FileSystemItem item, string accordion, int subLevel = 0, bool order = false)
+            {
+                foreach (var subdir in item.Subfolders.OrderBy(v => v.Name).Select((element, index) => new { Index = index, Element = element }).ToArray())
+                {
+                    html += await RenderNazcaAccordionItem(subdir.Element, accordion, subLevel, order);
+                }
+            }
+
+            void RenderFiles(FileSystemItem item, string accordion, int subLevel, bool order)
+            {
+                foreach (var video in item.Files.OrderBy(v => v.Title).Select((element, index) => new { Index = index, Element = element }).ToArray())
+                {
+                    html += $"<div class=\"d-flex justify-content-between\">";
+                    html += $"<a href=\"/Films/Details/Nazca?videoid={video.Element.ID}\" class=\"text-white link-underline link-underline-opacity-0 w-100 ps-2 py-1\" style=\"margin-left: {ps.ToString().Replace(',', '.')}%;\"> {video.Element.Title}</a>";
+                    html += $"</div>";
+                }
             }
 
             return html;

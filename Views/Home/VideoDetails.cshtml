@@ -60,9 +60,10 @@
 @if (Model != null)
 {
     <div class="@(ViewBag.nazcaMode != null && ViewBag.nazcaMode ? "bg-dark bg-opacity-75" : "") text-white p-4 rounded">
-        <h2 class="header-flag">@Html.DisplayFor(model => model.Title)
-            <span class="bookmark"></span>
-        </h2>
+        <!-- <h2>@Html.DisplayFor(model => model.Title)</h2> -->
+        <h2 id="editableText" ondblclick="makeEditable()">@Model.Title</h2>
+
+        <h5 id="deleted" class="bg-danger px-3 py-2 mt-3 rounded d-none">Aktualnie przeglądane wideo zostało usunięte.</h5>
 
         <table class="@(ViewBag.nazcaMode != null && ViewBag.nazcaMode ? "w-100" : "table table-borderless table-striped") mt-3">
             <tr class="@(ViewBag.nazcaMode != null && ViewBag.nazcaMode ? "d-block mt-2 ps-2" : "")">
@@ -111,9 +112,9 @@
 }
 else
 {
-    <h2>Nieznany plik</h2>
+    <h2 class="text-white">Nieznany plik</h2>
     <hr />
-    <h5 class="text-muted">Nie znaleziono wybranego filmu!</h5>
+    <h5 class="text-white">Nie znaleziono wybranego filmu!</h5>
 }
 
 <script>
@@ -126,6 +127,17 @@ else
     connection.on("restorePath", function () {
         clearDiv();
         updateDiv('@Model?.FullPath', false, true);
+    });
+
+    connection.on("updateTitle", function (title) {
+        const editableText = document.getElementById('editableText');
+        editableText.innerText = title;
+    });
+
+    connection.on("showDeletedMessage", function(state) {
+        const deletedMessage = document.getElementById('deleted');
+        deletedMessage.classList.remove(state ? "d-none" : "d-block");
+        deletedMessage.classList.add(state ? "d-block" : "d-none");
     });
 
     connection.on("updateDiv", updateDiv);
@@ -243,8 +255,8 @@ else
         }
     }
 
-    function updateDiv(content, active, lastActive) {
-        if (isThatPlayedVideo) {
+    function updateDiv(content, active, lastActive, force) {
+        if (isThatPlayedVideo || force) {
             var ol = document.getElementById("filePath").querySelector("ol");
             var segments = content.split('\\').filter(function (segment) {
                 return segment.trim() !== '';
@@ -257,7 +269,7 @@ else
                 ol.appendChild(getLiElement(segment, active));
             });
 
-            if (content != '@Model?.FullPath')
+            if (content != '@Model?.FullPath' && !force)
                 ol.appendChild(getLiElement("", false));
         }
     }
@@ -273,12 +285,71 @@ else
         return li;
     }
 
-    function clearDiv() {
-        if (isThatPlayedVideo) {
+    function clearDiv(force) {
+        if (isThatPlayedVideo || force) {
             var ol = document.getElementById("filePath").querySelector("ol");
             while (ol.firstChild) {
                 ol.removeChild(ol.firstChild);
             }
         }
+    }
+
+    function makeEditable() {
+        const editableText = document.getElementById('editableText');
+        editableText.innerHTML = '<input type="text" id="editField" value="' + editableText.innerText + '"/>';
+        const editField = document.getElementById('editField');
+        editField.focus();
+
+        // Obsługa zapisywania zmian po naciśnięciu Enter
+        editField.addEventListener('keyup', function(event) {
+            if (event.key === 'Enter') {
+                saveChanges();
+            }
+
+            if (event.key === 'Escape') {
+                cancelChanges();
+            }
+        });
+
+        // Obsługa anulowania zmian po opuszczeniu pola edycyjnego
+        editField.addEventListener('blur', function() {
+            cancelChanges();
+        });
+    }
+
+    function saveChanges() {
+        const editField = document.getElementById('editField');
+        const newText = editField.value;
+
+        // Tutaj wykonaj żądanie AJAX, aby zapisać zmiany
+        // Przykład użycia fetch:
+        fetch('/ChangeFileName', {
+            method: 'POST',
+            body: JSON.stringify({ videoId: '@Model?.ID', newName: newText }),
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            const editableText = document.getElementById('editableText');
+            if (data.name == null || data.name == "") {
+                cancelChanges();
+                return;
+            }
+            editableText.innerHTML = data.name;
+            clearDiv(true);
+            updateDiv(data.path, false, true, true);
+        })
+        .catch(error => {
+            console.error('Błąd AJAX:', error);
+            cancelChanges();
+        });
+    }
+
+    function cancelChanges() {
+        const editableText = document.getElementById('editableText');
+        const editField = document.getElementById('editField');
+        editableText.innerHTML = editField.defaultValue; // Przywróć pierwotny tekst
     }
 </script>

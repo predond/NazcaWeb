@@ -1,5 +1,5 @@
 ﻿@model FileSystemItem
 
 <div id="accordion">
-        @Html.Raw((await VideoModel.RenderAccordionItem(Model, "accordion")).html);
+    @Html.Raw((await VideoModel.RenderAccordionItem(Model, "accordion", 0, ViewBag.videosOrder != null ? (bool)ViewBag.videosOrder : false)).html);
 </div>
